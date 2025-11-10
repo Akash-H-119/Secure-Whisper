@@ -1,5 +1,23 @@
 // server/index.js
 // Secure Whisper backend (Postgres-powered)
+// DEBUG: log signals and unhandled errors to help Railway debugging
+process.on('SIGTERM', () => {
+  console.log('PROCESS SIGNAL: SIGTERM received — graceful shutdown starting');
+});
+process.on('SIGINT', () => {
+  console.log('PROCESS SIGNAL: SIGINT received');
+});
+process.on('uncaughtException', (err) => {
+  console.error('UNCAUGHT EXCEPTION:', err);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('UNHANDLED REJECTION:', reason);
+});
+
+// periodic heartbeat so logs show the process is alive
+setInterval(() => {
+  console.log('HEARTBEAT: process alive @', new Date().toISOString());
+}, 60_000); // every 60s
 
 import 'dotenv/config';
 import express from 'express';
