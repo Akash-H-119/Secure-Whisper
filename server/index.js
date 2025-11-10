@@ -1,6 +1,7 @@
 // server/index.js
 // Secure Whisper backend (Postgres-powered)
 
+// server/index.js (top)
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
@@ -13,10 +14,8 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import pool, { initDb, query } from './db.js';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-// DEBUG: log signals and unhandled errors to help Railway debugging
+// now the rest of your top-level code (signal handlers, heartbeat, etc.)
+/* DEBUG: log signals and unhandled errors to help Railway debugging */
 process.on('SIGTERM', () => {
   console.log('PROCESS SIGNAL: SIGTERM received — graceful shutdown starting');
 });
@@ -29,6 +28,10 @@ process.on('uncaughtException', (err) => {
 process.on('unhandledRejection', (reason) => {
   console.error('UNHANDLED REJECTION:', reason);
 });
+
+// helpers...
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // periodic heartbeat so logs show the process is alive
 setInterval(() => {
@@ -99,7 +102,6 @@ app.use(
   })
 );
 
-import path from 'path';
 const staticPath = path.join(__dirname, 'public');
 app.use(express.static(staticPath));
 app.get('*', (req, res) => res.sendFile(path.join(staticPath, 'index.html')));
