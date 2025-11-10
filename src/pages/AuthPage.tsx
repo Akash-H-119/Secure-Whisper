@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { apiFetch } from "../api";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,7 +16,7 @@ const AuthPage = () => {
   const [confirmPassword, setConfirmPassword] = useState("");
   const navigate = useNavigate();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!isLogin && password !== confirmPassword) {
@@ -27,52 +28,55 @@ const AuthPage = () => {
       return;
     }
 
-    // Call backend login/register
-    (async () => {
-      try {
-        const endpoint = isLogin ? "/api/login" : "/api/register";
-        const body: any = isLogin
-          ? { usernameOrEmail: email, password }
-          : { username: username || email.split("@")[0], email, password };
+    try {
+      const endpoint = isLogin ? "/api/login" : "/api/register";
+      const body = isLogin
+        ? { usernameOrEmail: email, password }
+        : { username: username || email.split("@")[0], email, password };
 
-        console.log('Attempting auth request to:', API_URL + endpoint);
-        const resp = await fetch(API_URL + endpoint, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        });
-        const data = await resp.json();
-        if (!resp.ok) {
-          toast({ title: "Error", description: data.error || "Auth failed", variant: "destructive" });
-          return;
-        }
+      console.log('Attempting auth request to:', API_URL + endpoint);
+      
+      const data = await apiFetch(endpoint, {
+        method: "POST",
+        body: JSON.stringify(body)
+      });
 
-        // store account in accounts list (multi-account support)
-        try {
-          const raw = localStorage.getItem("accounts") || "[]";
-          const accounts = JSON.parse(raw);
-          const existing = accounts.findIndex((a: any) => a.user?.id === data.user?.id);
-          if (existing > -1) {
-            accounts[existing] = { user: data.user, token: data.token };
-          } else {
-            accounts.unshift({ user: data.user, token: data.token });
-          }
-          localStorage.setItem("accounts", JSON.stringify(accounts));
-        } catch (err) {
-          // fallback single account
-          localStorage.setItem("accounts", JSON.stringify([{ user: data.user, token: data.token }]));
-        }
-
-        // set active account token/user
-        localStorage.setItem("token", data.token);
-        localStorage.setItem("user", JSON.stringify(data.user));
-
-        toast({ title: isLogin ? "Welcome back!" : "Account created!", description: isLogin ? "You've successfully logged in" : "Welcome to SecureChat" });
-        navigate("/chat");
-      } catch (err) {
-        toast({ title: "Error", description: "Network error", variant: "destructive" });
+      if (!data.user || !data.token) {
+        throw new Error("Invalid response from server");
       }
-    })();
+
+      // Store account in accounts list (multi-account support)
+      try {
+        const raw = localStorage.getItem("accounts") || "[]";
+        const accounts = JSON.parse(raw);
+        const existing = accounts.findIndex((a: any) => a.user?.id === data.user?.id);
+        if (existing > -1) {
+          accounts[existing] = { user: data.user, token: data.token };
+        } else {
+          accounts.unshift({ user: data.user, token: data.token });
+        }
+        localStorage.setItem("accounts", JSON.stringify(accounts));
+      } catch (err) {
+        // Fallback single account
+        localStorage.setItem("accounts", JSON.stringify([{ user: data.user, token: data.token }]));
+      }
+
+      // Set active account token/user
+      localStorage.setItem("token", data.token);
+      localStorage.setItem("user", JSON.stringify(data.user));
+
+      toast({ 
+        title: isLogin ? "Welcome back!" : "Account created!", 
+        description: isLogin ? "You've successfully logged in" : "Welcome to SecureChat" 
+      });
+      navigate("/chat");
+    } catch (err: any) {
+      toast({ 
+        title: "Error", 
+        description: err.message || "Authentication failed", 
+        variant: "destructive" 
+      });
+    }
   };
 
   return (
