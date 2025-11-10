@@ -99,6 +99,12 @@ app.use(
   })
 );
 
+import path from 'path';
+const staticPath = path.join(__dirname, 'public');
+app.use(express.static(staticPath));
+app.get('*', (req, res) => res.sendFile(path.join(staticPath, 'index.html')));
+
+
 // Health routes
 app.get('/', (req, res) => {
   res.json({ status: 'ok', message: 'Secure Whisper backend running 🚀' });
