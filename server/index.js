@@ -2,6 +2,44 @@
 // ✅ Secure Whisper Backend
 // =======================
 
+// near top of server/index.js
+import 'dotenv/config'; // ensures .env loads locally; dotenv is already a dep
+import express from 'express';
+import pool, { initDb } from './db.js';
+
+// ... your existing imports and middleware setup
+
+const app = express();
+app.use(express.json());
+
+const PORT = process.env.PORT || 3000;
+
+// initialize Postgres tables and test connection
+try {
+  await initDb();
+} catch (err) {
+  console.error('❌ initDb failed:', err);
+  process.exit(1);
+}
+
+// example health endpoint
+app.get('/health', async (req, res) => {
+  try {
+    await pool.query('SELECT 1');
+    res.json({ status: 'ok', db: 'connected' });
+  } catch (err) {
+    console.error('DB health check failed:', err);
+    res.status(500).json({ status: 'error', db: 'unreachable', error: err.message });
+  }
+});
+
+// ... your existing routes and WebSocket init
+
+app.listen(PORT, () => {
+  console.log(`🚀 Server listening on port ${PORT}`);
+});
+
+
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
@@ -24,7 +62,6 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Railway automatically provides process.env.PORT
-const PORT = process.env.PORT || 4000;
 const JWT_SECRET = process.env.JWT_SECRET || "dev_jwt_secret";
 const ENCRYPTION_KEY = (process.env.ENCRYPTION_KEY || "dev_key_32_bytes_long_for_demo!!")
   .padEnd(32)
