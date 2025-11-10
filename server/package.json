@@ -2,9 +2,11 @@
   "name": "secure-whisper-backend",
   "version": "0.1.0",
   "type": "module",
+  
   "scripts": {
     "start": "node index.js",
     "dev": "nodemon index.js"
+    
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
@@ -15,5 +17,9 @@
     "mongodb": "^5.7.0",
     "mongoose": "^7.4.0",
     "ws": "^8.13.0"
-  }
+  },
+
+  "engines": { "node": "18.x" }
+
 }
+
