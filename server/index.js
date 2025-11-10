@@ -1,5 +1,21 @@
 // server/index.js
 // Secure Whisper backend (Postgres-powered)
+
+import 'dotenv/config';
+import express from 'express';
+import cors from 'cors';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import { createServer } from 'http';
+import { WebSocketServer } from 'ws';
+import { randomBytes, createCipheriv, createDecipheriv } from 'crypto';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import pool, { initDb, query } from './db.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 // DEBUG: log signals and unhandled errors to help Railway debugging
 process.on('SIGTERM', () => {
   console.log('PROCESS SIGNAL: SIGTERM received — graceful shutdown starting');
@@ -18,21 +34,6 @@ process.on('unhandledRejection', (reason) => {
 setInterval(() => {
   console.log('HEARTBEAT: process alive @', new Date().toISOString());
 }, 60_000); // every 60s
-
-import 'dotenv/config';
-import express from 'express';
-import cors from 'cors';
-import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
-import { createServer } from 'http';
-import { WebSocketServer } from 'ws';
-import { randomBytes, createCipheriv, createDecipheriv } from 'crypto';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import pool, { initDb, query } from './db.js';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 // config
 const PORT = process.env.PORT || 3000;
@@ -136,7 +137,6 @@ app.post('/api/register', async (req, res) => {
     const token = signToken(safeUser);
     res.json({ user: safeUser, token });
   } catch (err) {
-    // unique violation code in Postgres is '23505'
     if (err?.code === '23505') {
       return res.status(400).json({ error: 'Username or email already exists' });
     }
@@ -170,7 +170,6 @@ app.post('/api/login', async (req, res) => {
 });
 
 /* ---------- Messages ---------- */
-// Post a message
 app.post('/api/messages', auth, async (req, res) => {
   const { chatId, content } = req.body || {};
   if (!chatId || !content) return res.status(400).json({ error: 'chatId and content required' });
@@ -194,7 +193,6 @@ app.post('/api/messages', auth, async (req, res) => {
       created_at: msg.created_at,
     };
 
-    // broadcast to chat
     broadcastToChat(chatId, { type: 'message', message });
 
     res.json({ message });
@@ -204,7 +202,6 @@ app.post('/api/messages', auth, async (req, res) => {
   }
 });
 
-// Get messages for chat
 app.get('/api/messages', auth, async (req, res) => {
   const chatId = req.query.chatId;
   if (!chatId) return res.status(400).json({ error: 'chatId query required' });
@@ -232,7 +229,6 @@ app.get('/api/messages', auth, async (req, res) => {
 });
 
 /* ---------- Friends ---------- */
-// Add friend (by username or email)
 app.post('/api/friends/add', auth, async (req, res) => {
   const { username, identifier } = req.body || {};
   const ident = identifier || username;
@@ -246,7 +242,6 @@ app.post('/api/friends/add', auth, async (req, res) => {
 
     if (String(friend.id) === String(req.user.id)) return res.status(400).json({ error: 'Cannot add yourself' });
 
-    // create bidirectional friendship if not exists
     const upsert = `
       INSERT INTO friends (user_id, friend_id)
       VALUES ($1, $2)
@@ -262,7 +257,6 @@ app.post('/api/friends/add', auth, async (req, res) => {
   }
 });
 
-// Get friends list
 app.get('/api/friends', auth, async (req, res) => {
   try {
     const text = `
@@ -312,16 +306,15 @@ wss.on('connection', (ws) => {
   ws.on('close', () => subs.delete(ws));
 });
 
-/* ---------- Start server after DB init ---------- */
-(async () => {
-  try {
-    await initDb();
-    console.log('✅ Postgres initialized and connected');
-    server.listen(PORT, '0.0.0.0', () => {
-      console.log(`🚀 Backend API + WS server live on port ${PORT}`);
-    });
-  } catch (err) {
-    console.error('Fatal DB init error:', err);
-    process.exit(1);
-  }
-})();
+/* ---------- Start server (listen now) and init DB in background ---------- */
+server.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 Backend API + WS server live on port ${PORT}`);
+});
+
+// init DB in background — don't block startup / health checks
+initDb()
+  .then(() => console.log('✅ Postgres initialized (background)'))
+  .catch((err) => {
+    console.error('❌ Background DB init failed:', err);
+    // keep process running; logs will show the error
+  });
